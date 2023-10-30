@@ -7,25 +7,171 @@ bibliography: references.bib
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+library(tidyverse)
+knitr::opts_chunk$set(echo = F)
+db <- readRDS("antro1986_2018_n5.rds")
+options(scipen = 8)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+This dataset integrates more than three decades of public health databases
+focusing on the Ecuadorian population. It combines individual data from six
+distinct datasets, encompassing a total of `r nrow(db)` individuals and `r ncol(db)` variables.
+This consolidated database includes anthropometric measurements, along with
+socio-economic characteristics of both households and individuals. Within this
+database, there are `r sum(as.numeric(db$tpind==2))` instances of child-mother
+pairs, involving children under the age of 5, as well as
+`r sum(as.numeric(db$tpind==1))` unique mothers. Additionally, the dataset
+comprises `r sum(as.numeric(db$tpind==3))` other individuals, primarily
+consisting of individuals over the age of 5 and Women in Reproductive Age (WRA).
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# Sources
 
-```{r cars}
-summary(cars)
+The dataset was created using the data collected from the following national
+health surveys:
+
+-   DANS 1986: Diagnóstico de la situación alimentaria, nutricional y de salud
+    de la población ecuatoriana menor de cinco años [@wilmab.freire1988],
+-   ENDEMAIN 1999: Encuesta Demografía y de Salud Materna e Infantil
+    [@catón2005],
+-   ENDEMAIN 2004: Encuesta Demografía y de Salud Materna e Infantil
+    [@ordóñez2005],
+-   ENSANUT 2012: Encuesta Nacional de Salud y Nutrición [@freire2014],
+-   ECV 2014 : Encuesta Nacional de Condiciones de Vida [@inec2014],
+-   ENSANUT 2018 : Encuesta Nacional de Salud y Nutrición 2018 [@inec] .
+
+# Available data
+
+The total sampled population of children under 5 years old remained below 10,000 from
+1986 to 2012. Subsequently, there was a notable increase in the 2014 and 2018
+surveys. Additionally, anthropometric data for other population groups has shown
+a steady increase from 2004 to 2018.
+
+```{r cars, echo=F}
+tb1 <- db %>% group_by(idenc,tpind) %>% summarise(n=n(),.groups = 'drop') %>%
+  spread(.,idenc,n)
+ tb1$Total <- rowSums(tb1[,-1])
+ tb1 <- rbind(tb1,colSums(tb1))
+ tb1$tpind <- c("Mothers","Child<5yo","Other","Total")
+ names(tb1)[1] <- "Group"
+ tb1 <- as.data.frame(tb1)
+kbl(tb1, align="l",escape=F,
+    caption = "Total of observations",
+    booktabs = TRUE) %>%
+  row_spec(3,hline_after = T) %>%
+  kable_styling(full_width = T)
+
 ```
 
-## Including Plots
+# Anthropometric data
 
-You can also embed plots, for example:
+Anthropometric indicators were calculated for three age groups separately: 0 to
+under 5 years, 5 to 19 years and 20 to 59 years. Standardized table and
+calculation methodology employed in the first two groups were conducted with
+igrowup (Stunting:Haz\<-2, OW:2\>zBMI\>=3, OB:zBMI\>3) and who2007
+(OW:1\>zBFA\>=2, OB: zBFA \>2) package provided by the WHO [5]. For the third
+group from 20 to 59 years, BMI was calculated and cut-offs published by the WHO
+were applied to evaluate overweight and obesity (OW:25\>=BMI\>30, OB:BMI\>=30).
+For each survey the availability of pregnancy state (*embrz*) provided a filter
+to exclude all women in pregnancy from anthropometrics status estimation.
+Anthropometric indicators were computed separately for three distinct age
+categories: 0 to under 5 years, 5 to 19 years, and 20 to 59 years. The
+standardized table and calculation approach employed for the first two age
+groups were executed using the "igrowup" package (Stunting:Haz\<-2,
+OW:2\>zBMI\>=3, OB:zBMI\>3) and the "who2007" package (OW:1\>zBFA\>=2, OB: zBFA
+\>2), both provided by the World Health Organization [@deonis2006].
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+For the third age group (20 to 59 years), Body Mass Index (BMI) was computed,
+and the BMI thresholds published by the World Health Organization were used to
+determine overweight and obesity status (Overweight: 25 \<= BMI \< 30, Obesity:
+BMI \>= 30).
+
+In each survey, the availability of pregnancy status (*embrz*) was utilized as a
+filter to exclude all pregnant women from the estimation of anthropometric
+status.
+
+# Complex Survey design
+
+For each individual database, the original survey design was taken into account,
+incorporating sampling weights (*pw*), strata (*strata*), and primary sampling
+units (*psu*) into the final consolidated database. The sampling design ensured
+that representativeness was achieved at the provincial level for the most recent
+surveys (ENDEMAIN 2004, ENSANUT 2012, ENSANUT 2018), and at the geographical domains (Highlands, Coast, Amazon, Quito and Guayaquil).
+
+Over the years, the size of the surveys grew substantially, covering a broader
+geographical area. Notably, in 1986, surveys did not encompass the Amazon region
+or the Galapagos Islands due to technical constraints.
+
+In the 2018 survey, there was no self-representation available for the two main
+cities in the country: Quito and Guayaquil.
+
+```{r}
+
+tb2 <- db %>% group_by(subreg,idenc) %>% summarise(n=n(),.groups = 'drop') %>%
+  spread(.,idenc,n)
+tb2 <- rbind(tb2,colSums(tb2,na.rm = T))
+tb2[is.na(tb2)] <- 0
+tb2[11,]<- tb2[1,]+tb2[8,]
+tb2[12,]<- tb2[3,]+tb2[9,]
+tb2 <- tb2[c(8,1,11,2,12,3,9,4:7,10),]
+
+
+tb2$subreg <- c("Quito","Other","Subtotal","Subtotal",
+                "Guayaquil","Other","Subtotal","Subtotal",
+                "Subtotal", "Subtotal", "Galapagos" ,"Total")
+tb2 <- cbind(Region=c("Sierra"," "," "," ","Costa"," "," "," ",
+                "Amazonia"," ","Galapagos","Total"),
+             Area=c("Urban"," "," ","Rural","Urban"," "," ","Rural",
+                "Urban","Rural","Galapagos","Total"),
+             tb2)
+names(tb2)[names(tb2)=="subreg"] <- "Area"
+
+tb2 <- as.data.frame(tb2)
+kbl(tb2, align="l",escape=F,
+    caption = "Observations per Dominion",
+    booktabs = TRUE) %>%
+  row_spec(c(4,8,10,11),hline_after = T) %>%
+  row_spec(c(3,7,9),extra_latex_after = "\\cline{2-9}") %>%
+  row_spec(c(2,6),extra_latex_after = "\\cline{3-9}") %>%
+  kable_styling(full_width = T)
+
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Imputation of data
+
+In the 1986 dataset, missing day of birth values for Women in Reproductive Age
+(WRA) and children were imputed using the methodology outlined in the DHS
+approach (refer to: [@rutstein2006]), with months being used for missing values.
+In subsequent surveys, no additional imputation was conducted due to the
+comprehensive nature of the data and the limited impact of missing values.
+
+For the 2012 survey, anthropometric data was evaluated independently of the
+reproductive survey. Consequently, a portion of cases did not contain
+information about the number of children (2200 cases out of 21296 cases),
+although this constituted less than the 10% threshold that would warrant
+applying an imputation method. An imputation technique involving chained
+equations was employed, considering variables such as age groups, region,
+education, and crowding. This regression-based algorithm iteratively filled in
+missing values across multiple variables. The approach followed a chained
+equations strategy, utilizing fully conditional specification (FCS) in the
+prediction equations.
+
+# Household material well being index
+
+This index was created by utilizing unmet essential requirements, acting as a surrogate measure for poverty, with a particular focus on the tangible dimension. To account for the broad time frame of the data, the elements were consolidated to encompass data from diverse surveys. The Unmet Basic Needs (UBN) index offers a means to establish a metric for well-being grounded in critical physical necessities related to housing and infrastructure, especially in situations where data is limited (see: [@hammill2009]). The components integrated into this index (referred to as *ics* in the database) were:
+
+
+-   Crowding more than three persons per room;
+-   Housing: living in a house made of irregular materials considering floor,
+    walls and house type;
+-   Sanitation : not having an indoor flush toilet;
+-   Cooking fuel: not using gas or electricity as cooking energy;
+-   Water: not having an indoor tubed water;
+-   Waste disposal: not accessing to motorized garbage disposal.
+
+Sum of each component (unweigthed) and classification per 2 points category was
+calculated to build the final index.
+
+# Reference
